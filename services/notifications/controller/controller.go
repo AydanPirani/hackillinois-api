@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -24,6 +25,7 @@ func SetupController(route *mux.Route) {
 	metrics.RegisterHandler("/topic/all/", GetAllNotifications, "GET", router)
 	metrics.RegisterHandler("/topic/public/", GetAllPublicNotifications, "GET", router)
 	metrics.RegisterHandler("/topic/{id}/", GetNotificationsForTopic, "GET", router)
+	metrics.RegisterHandler("/schedule/{id}/", ScheduleNotification, "POST", router)
 	metrics.RegisterHandler("/topic/{id}/", PublishNotificationToTopic, "POST", router)
 	metrics.RegisterHandler("/topic/{id}/", DeleteTopic, "DELETE", router)
 	metrics.RegisterHandler("/topic/{id}/subscribe/", SubscribeToTopic, "POST", router)
@@ -33,7 +35,7 @@ func SetupController(route *mux.Route) {
 }
 
 /*
-	Returns all topics that notifications can be published to
+Returns all topics that notifications can be published to
 */
 func GetAllTopics(w http.ResponseWriter, r *http.Request) {
 	topics, err := service.GetAllTopicIDs()
@@ -60,7 +62,7 @@ func GetAllTopics(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-	Creates a topic with the given id and returns it
+Creates a topic with the given id and returns it
 */
 func CreateTopic(w http.ResponseWriter, r *http.Request) {
 	var topic models.Topic
@@ -84,7 +86,7 @@ func CreateTopic(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-	Returns all notifications to topics the user is subscribed to
+Returns all notifications to topics the user is subscribed to
 */
 func GetAllNotifications(w http.ResponseWriter, r *http.Request) {
 	id := r.Header.Get("HackIllinois-Identity")
@@ -111,7 +113,7 @@ func GetAllNotifications(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-	Returns all public notifications
+Returns all public notifications
 */
 func GetAllPublicNotifications(w http.ResponseWriter, r *http.Request) {
 	notifications, err := service.GetAllPublicNotifications()
@@ -129,7 +131,7 @@ func GetAllPublicNotifications(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-	Returns all notifications for the specified topic
+Returns all notifications for the specified topic
 */
 func GetNotificationsForTopic(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
@@ -149,7 +151,7 @@ func GetNotificationsForTopic(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-	Publishes a notification to the specied topic and returns the notification
+Publishes a notification to the specied topic and returns the notification
 */
 func PublishNotificationToTopic(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
@@ -160,7 +162,6 @@ func PublishNotificationToTopic(w http.ResponseWriter, r *http.Request) {
 	notification.Topic = id
 	notification.ID = utils.GenerateUniqueID()
 	notification.Time = time.Now().Unix()
-
 	order, err := service.PublishNotificationToTopic(notification)
 
 	if err != nil {
@@ -171,8 +172,47 @@ func PublishNotificationToTopic(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(order)
 }
 
+func ScheduleNotification(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+
+	//var notification models.Notification
+	//json.NewDecoder(r.Body).Decode(&notification)
+
+	notification := models.Notification{
+		ID:            utils.GenerateUniqueID(),
+		Topic:         r.FormValue("id"),
+		Title:         r.FormValue("title"),
+		Body:          r.FormValue("body"),
+		Time:          time.Now().Unix(),
+		ScheduledTime: r.FormValue("scheduledtime"),
+	}
+
+	fmt.Println(notification)
+	fmt.Println("SCHEDULED TIME")
+	fmt.Println(notification.ScheduledTime)
+	fmt.Println(r.FormValue("scheduledtime"))
+
+	layoutISO := "2006-01-02 15:04"
+
+	datetime, err := time.Parse(layoutISO, notification.ScheduledTime)
+
+	if err != nil {
+		errors.WriteError(w, r, errors.InternalError(err.Error(), "Could not schedule notification."))
+		return
+	}
+
+	order, err := service.ScheduleNotification(notification, datetime)
+
+	if err != nil {
+		errors.WriteError(w, r, errors.InternalError(err.Error(), "Could not schedule notification."))
+		return
+	}
+
+	json.NewEncoder(w).Encode(order)
+}
+
 /*
-	Deletes the specified topic and returns it
+Deletes the specified topic and returns it
 */
 func DeleteTopic(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
@@ -188,7 +228,7 @@ func DeleteTopic(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-	Subscribes a user to the specied topic and returns their updated subscriptions
+Subscribes a user to the specied topic and returns their updated subscriptions
 */
 func SubscribeToTopic(w http.ResponseWriter, r *http.Request) {
 	topicId := mux.Vars(r)["id"]
@@ -211,7 +251,7 @@ func SubscribeToTopic(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-	Unsubscribes a user to the specied topic and returns their updated subscriptions
+Unsubscribes a user to the specied topic and returns their updated subscriptions
 */
 func UnsubscribeToTopic(w http.ResponseWriter, r *http.Request) {
 	topicId := mux.Vars(r)["id"]
@@ -234,7 +274,7 @@ func UnsubscribeToTopic(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-	Registered the specified device token to the user
+Registered the specified device token to the user
 */
 func RegisterDeviceToUser(w http.ResponseWriter, r *http.Request) {
 	id := r.Header.Get("HackIllinois-Identity")
@@ -264,7 +304,7 @@ func RegisterDeviceToUser(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-	Returns the notification order with the specified id
+Returns the notification order with the specified id
 */
 func GetNotificationOrder(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]

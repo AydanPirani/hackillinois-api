@@ -1,9 +1,13 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
+
+	"fmt"
 
 	"github.com/HackIllinois/api/common/database"
 	"github.com/HackIllinois/api/common/utils"
@@ -17,6 +21,8 @@ import (
 
 var SNS_MESSAGE_STRUCTURE string = "json"
 var WORKER_POOL_SIZE int = 128
+
+var scheduledNotifications = make(map[string]notificationData)
 
 var sess *session.Session
 var client *sns.SNS
@@ -44,7 +50,7 @@ func Initialize() error {
 }
 
 /*
-	Returns a list of all topic ids
+Returns a list of all topic ids
 */
 func GetAllTopicIDs() ([]string, error) {
 	var topics []models.Topic
@@ -64,7 +70,7 @@ func GetAllTopicIDs() ([]string, error) {
 }
 
 /*
-	Returns the topic with the specified id
+Returns the topic with the specified id
 */
 func GetTopic(id string) (*models.Topic, error) {
 	selector := database.QuerySelector{
@@ -82,9 +88,10 @@ func GetTopic(id string) (*models.Topic, error) {
 }
 
 /*
-	Creates a topic
+Creates a topic
 */
 func CreateTopic(id string) error {
+	fmt.Println("TESTING!")
 	_, err := GetTopic(id)
 
 	if err != database.ErrNotFound {
@@ -101,6 +108,7 @@ func CreateTopic(id string) error {
 	}
 
 	err = db.Insert("topics", &topic, nil)
+	fmt.Println("in here!")
 
 	if err != nil {
 		return err
@@ -110,7 +118,7 @@ func CreateTopic(id string) error {
 }
 
 /*
-	Deletes a topic
+Deletes a topic
 */
 func DeleteTopic(id string) error {
 	selector := database.QuerySelector{
@@ -127,7 +135,7 @@ func DeleteTopic(id string) error {
 }
 
 /*
-	Returns all notification for the specified topic
+Returns all notification for the specified topic
 */
 func GetAllNotificationsForTopic(topic string) ([]models.Notification, error) {
 	selector := database.QuerySelector{
@@ -145,7 +153,7 @@ func GetAllNotificationsForTopic(topic string) ([]models.Notification, error) {
 }
 
 /*
-	Returns all notifications for the specified topics
+Returns all notifications for the specified topics
 */
 func GetAllNotifications(topics []string) ([]models.Notification, error) {
 	notifications := make([]models.Notification, 0)
@@ -164,14 +172,14 @@ func GetAllNotifications(topics []string) ([]models.Notification, error) {
 }
 
 /*
-	Returns all public notifications
+Returns all public notifications
 */
 func GetAllPublicNotifications() ([]models.Notification, error) {
 	return GetAllNotifications([]string{"User", "Attendee"})
 }
 
 /*
-	Returns the list of topics the user is subscribed to
+Returns the list of topics the user is subscribed to
 */
 func GetSubscriptions(id string) ([]string, error) {
 	selector := database.QuerySelector{
@@ -207,7 +215,7 @@ func GetSubscriptions(id string) ([]string, error) {
 }
 
 /*
-	Subscribes the user to the specified topic
+Subscribes the user to the specified topic
 */
 func SubscribeToTopic(userId string, topicId string) error {
 	selector := database.QuerySelector{
@@ -230,7 +238,7 @@ func SubscribeToTopic(userId string, topicId string) error {
 }
 
 /*
-	Unsubscribes the user to the specified topic
+Unsubscribes the user to the specified topic
 */
 func UnsubscribeToTopic(userId string, topicId string) error {
 	selector := database.QuerySelector{
@@ -253,7 +261,7 @@ func UnsubscribeToTopic(userId string, topicId string) error {
 }
 
 /*
-	Gets the list of devices registered to a user
+Gets the list of devices registered to a user
 */
 func GetUserDevices(id string) ([]string, error) {
 	selector := database.QuerySelector{
@@ -287,7 +295,7 @@ func GetUserDevices(id string) ([]string, error) {
 }
 
 /*
-	Sets the list of devices registered to a user
+Sets the list of devices registered to a user
 */
 func SetUserDevices(id string, devices []string) error {
 	selector := database.QuerySelector{
@@ -309,7 +317,7 @@ func SetUserDevices(id string, devices []string) error {
 }
 
 /*
-	Registers the device token with SNS and stores the arn with the associated user
+Registers the device token with SNS and stores the arn with the associated user
 */
 func RegisterDeviceToUser(token string, platform string, id string) error {
 	var platform_arn string
@@ -361,7 +369,7 @@ func RegisterDeviceToUser(token string, platform string, id string) error {
 }
 
 /*
-	Returns a list of userids to receive a notification to the specified topic
+Returns a list of userids to receive a notification to the specified topic
 */
 func GetNotificationRecipients(topicId string) ([]string, error) {
 	topic, err := GetTopic(topicId)
@@ -383,7 +391,7 @@ func GetNotificationRecipients(topicId string) ([]string, error) {
 }
 
 /*
-	Returns a list of arns to receive a notification
+Returns a list of arns to receive a notification
 */
 func GetNotificationRecipientArns(userIds []string) ([]string, error) {
 	device_arns := make([]string, 0)
@@ -402,7 +410,7 @@ func GetNotificationRecipientArns(userIds []string) ([]string, error) {
 }
 
 /*
-	Returns the notification order with the specified id
+Returns the notification order with the specified id
 */
 func GetNotificationOrder(id string) (*models.NotificationOrder, error) {
 	selector := database.QuerySelector{
@@ -420,9 +428,14 @@ func GetNotificationOrder(id string) (*models.NotificationOrder, error) {
 }
 
 /*
-	Publishes a notification to the specified topic
+Publishes a notification to the specified topic
 */
 func PublishNotificationToTopic(notification models.Notification) (*models.NotificationOrder, error) {
+	fmt.Println("IN FUNCTION, PRINTING TITLE + BODY")
+	fmt.Println(notification.Title)
+	fmt.Println(notification.Body)
+	fmt.Println("IN FUNCTION, DONE PRINTING TITLE + BODY")
+
 	err := db.Insert("notifications", &notification, nil)
 
 	if err != nil {
@@ -468,8 +481,21 @@ func PublishNotificationToTopic(notification models.Notification) (*models.Notif
 	return &order, nil
 }
 
+func ScheduleNotification(notification models.Notification, datetime time.Time) (*models.NotificationOrder, error) {
+
+	fmt.Println("IN FUNCTION, PRINTING TITLE + BODY")
+	fmt.Println(notification.Title)
+	fmt.Println(notification.Body)
+	fmt.Println("IN FUNCTION, DONE PRINTING TITLE + BODY")
+
+	fmt.Println("in here now!")
+	fmt.Println(datetime)
+	fmt.Println(notification)
+	return nil, nil
+}
+
 /*
-	Publishes the notification payload to all specified arns
+Publishes the notification payload to all specified arns
 */
 func PublishNotification(id string, payload string, arns []string) error {
 	success_count := 0
@@ -523,7 +549,7 @@ func PublishNotification(id string, payload string, arns []string) error {
 }
 
 /*
-	Worker go routine to publish notifications
+Worker go routine to publish notifications
 */
 func PublishNotificationWorker(notification string, device_arns <-chan string, responses chan<- bool) {
 	for device_arn := range device_arns {
@@ -538,7 +564,7 @@ func PublishNotificationWorker(notification string, device_arns <-chan string, r
 }
 
 /*
-	Generates the notification payload for SNS
+Generates the notification payload for SNS
 */
 func GenerateNotificationJson(notification models.Notification) (string, error) {
 	apns_payload := models.APNSPayload{
@@ -585,4 +611,9 @@ func GenerateNotificationJson(notification models.Notification) (string, error) 
 	}
 
 	return string(notification_json), nil
+}
+
+type notificationData struct {
+	time time.Time
+	ctx  context.Context
 }

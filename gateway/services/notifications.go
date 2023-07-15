@@ -61,6 +61,14 @@ var NotificationsRoutes = arbor.RouteCollection{
 			ServeHTTP,
 	},
 	arbor.Route{
+		"ScheduleNotification",
+		"POST",
+		"/notifications/schedule/{id}/",
+		alice.New(middleware.IdentificationMiddleware, middleware.AuthMiddleware([]authtoken.Role{authtoken.AdminRole, authtoken.StaffRole})).
+			ThenFunc(ScheduleNotification).
+			ServeHTTP,
+	},
+	arbor.Route{
 		"DeleteTopic",
 		"DELETE",
 		"/notifications/topic/{id}/",
@@ -123,6 +131,10 @@ func GetNotificationsForTopic(w http.ResponseWriter, r *http.Request) {
 }
 
 func PublishNotificationToTopic(w http.ResponseWriter, r *http.Request) {
+	arbor.POST(w, config.NOTIFICATIONS_SERVICE+r.URL.String(), NotificationsFormat, "", r)
+}
+
+func ScheduleNotification(w http.ResponseWriter, r *http.Request) {
 	arbor.POST(w, config.NOTIFICATIONS_SERVICE+r.URL.String(), NotificationsFormat, "", r)
 }
 
