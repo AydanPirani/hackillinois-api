@@ -194,7 +194,7 @@ func ScheduleNotification(w http.ResponseWriter, r *http.Request) {
 	datetime, err := time.Parse(layoutISO, notification.ScheduledTime)
 
 	if err != nil {
-		errors.WriteError(w, r, errors.InternalError(err.Error(), "Could not schedule notification."))
+		errors.WriteError(w, r, errors.InternalError(err.Error(), "Could not parse date!"))
 		return
 	}
 
@@ -204,11 +204,7 @@ func ScheduleNotification(w http.ResponseWriter, r *http.Request) {
 		errors.WriteError(w, r, errors.InternalError(err.Error(), "Could not schedule notification."))
 		return
 	}
-
-	//json.NewEncoder(w).Encode(order)
-	//w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(notification)
-	fmt.Printf("finished writing header!")
 }
 
 /*

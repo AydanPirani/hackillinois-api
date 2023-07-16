@@ -431,11 +431,6 @@ func GetNotificationOrder(id string) (*models.NotificationOrder, error) {
 Publishes a notification to the specified topic
 */
 func PublishNotificationToTopic(notification models.Notification) (*models.NotificationOrder, error) {
-	fmt.Println("IN FUNCTION, PRINTING TITLE + BODY")
-	fmt.Println(notification.Title)
-	fmt.Println(notification.Body)
-	fmt.Println("IN FUNCTION, DONE PRINTING TITLE + BODY")
-
 	err := db.Insert("notifications", &notification, nil)
 
 	if err != nil {
@@ -482,7 +477,7 @@ func PublishNotificationToTopic(notification models.Notification) (*models.Notif
 }
 
 func ScheduleNotification(notification models.Notification, scheduleTime time.Time) error {
-	fmt.Printf("init")
+	fmt.Println("in schedule function!")
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	waitUntilTime := func() {
@@ -500,7 +495,6 @@ func ScheduleNotification(notification models.Notification, scheduleTime time.Ti
 		}
 	}
 
-	fmt.Printf("middle")
 	executeFunction := func(notification models.Notification) (*models.NotificationOrder, error) {
 		waitUntilTime()
 		execTime := time.Now().Format("2006-01-02 15:04")
@@ -510,9 +504,9 @@ func ScheduleNotification(notification models.Notification, scheduleTime time.Ti
 		return PublishNotificationToTopic(notification)
 	}
 
-	fmt.Printf("pre-returning null!")
+	fmt.Println("pre-executing!")
 	go executeFunction(notification)
-	fmt.Printf("returning null!")
+	fmt.Println("in execution!")
 	return nil
 }
 
