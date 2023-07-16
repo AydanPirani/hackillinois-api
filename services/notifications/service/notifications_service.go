@@ -22,7 +22,7 @@ import (
 var SNS_MESSAGE_STRUCTURE string = "json"
 var WORKER_POOL_SIZE int = 128
 
-var scheduledNotifications = make(map[string]notificationData)
+var scheduledNotifications = make(map[string]func())
 
 var sess *session.Session
 var client *sns.SNS
@@ -481,17 +481,39 @@ func PublishNotificationToTopic(notification models.Notification) (*models.Notif
 	return &order, nil
 }
 
-func ScheduleNotification(notification models.Notification, datetime time.Time) (*models.NotificationOrder, error) {
+func ScheduleNotification(notification models.Notification, scheduleTime time.Time) error {
+	fmt.Printf("init")
+	ctx, cancelFunc := context.WithCancel(context.Background())
 
-	fmt.Println("IN FUNCTION, PRINTING TITLE + BODY")
-	fmt.Println(notification.Title)
-	fmt.Println(notification.Body)
-	fmt.Println("IN FUNCTION, DONE PRINTING TITLE + BODY")
+	waitUntilTime := func() {
+		leftoverTime := scheduleTime.UTC().Sub(time.Now().UTC())
+		fmt.Printf("Schedule request sent! Waiting for %s\n", leftoverTime.String())
 
-	fmt.Println("in here now!")
-	fmt.Println(datetime)
-	fmt.Println(notification)
-	return nil, nil
+		timer := time.NewTimer(time.Until(scheduleTime.UTC()))
+		defer timer.Stop()
+
+		select {
+		case <-timer.C:
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	fmt.Printf("middle")
+	executeFunction := func(notification models.Notification) (*models.NotificationOrder, error) {
+		waitUntilTime()
+		execTime := time.Now().Format("2006-01-02 15:04")
+
+		scheduledNotifications[notification.ID] = cancelFunc
+		fmt.Printf("Sending notification now! Running at %s\n", execTime)
+		return PublishNotificationToTopic(notification)
+	}
+
+	fmt.Printf("pre-returning null!")
+	go executeFunction(notification)
+	fmt.Printf("returning null!")
+	return nil
 }
 
 /*

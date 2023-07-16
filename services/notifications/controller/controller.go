@@ -175,9 +175,6 @@ func PublishNotificationToTopic(w http.ResponseWriter, r *http.Request) {
 func ScheduleNotification(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
-	//var notification models.Notification
-	//json.NewDecoder(r.Body).Decode(&notification)
-
 	notification := models.Notification{
 		ID:            utils.GenerateUniqueID(),
 		Topic:         r.FormValue("id"),
@@ -201,14 +198,17 @@ func ScheduleNotification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order, err := service.ScheduleNotification(notification, datetime)
+	err = service.ScheduleNotification(notification, datetime)
 
 	if err != nil {
 		errors.WriteError(w, r, errors.InternalError(err.Error(), "Could not schedule notification."))
 		return
 	}
 
-	json.NewEncoder(w).Encode(order)
+	//json.NewEncoder(w).Encode(order)
+	//w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(notification)
+	fmt.Printf("finished writing header!")
 }
 
 /*
